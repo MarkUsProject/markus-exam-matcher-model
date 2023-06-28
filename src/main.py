@@ -29,7 +29,6 @@ RELATIVE_DATA_LOC = 'data'
 
 # Transformation pipeline
 TRANSFORM = transforms.Compose([
-        # transforms.Grayscale(num_output_channels=1),
         transforms.ToTensor(),
         transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))
     ])
