@@ -23,8 +23,8 @@ RANDOM_SEED = 1
 MNIST_MEAN = 0.1307
 MNIST_STD = 0.3081
 
-RELATIVE_MODEL_LOC = 'results/model.pth'
-RELATIVE_OPTIMIZER_LOC = 'results/optimizer.pth'
+RELATIVE_MODEL_LOC = 'results'
+RELATIVE_OPTIMIZER_LOC = 'results'
 RELATIVE_DATA_LOC = 'data'
 
 # Transformation pipeline
@@ -119,28 +119,32 @@ def display_data_batch(train_data_loader) -> None:
     plt.show(block=True)
 
 
-def train_numeric(train_data_loader, val_data_loader, cache=False):
+def train_numeric(train_data_loader, val_data_loader, cache=None):
     """Train a numeric recognition model."""
     model = Net(10)
-    return _train(model, train_data_loader, val_data_loader, cache)
+    return _train(model, train_data_loader, val_data_loader, cache, 'NUMERIC')
 
 
-def train_letter(train_data_loader, val_data_loader, cache=False):
+def train_letter(train_data_loader, val_data_loader, cache=None):
     """Train a letter recognition model."""
     model = Net(26)
-    return _train(model, train_data_loader, val_data_loader, cache)
+    return _train(model, train_data_loader, val_data_loader, cache, 'LETTER')
 
 
-def _train(model, train_data_loader, val_data_loader, cache):
+def _train(model, train_data_loader, val_data_loader, cache, model_type):
     """Train a Net model."""
+    # Create relative path locations
+    relative_model_path = f'{RELATIVE_MODEL_LOC}/model_{model_type.lower()}.pth'
+    relative_optimizer_path = f'{RELATIVE_OPTIMIZER_LOC}/optimizer_{model_type.lower()}.pth'
+
     # Define optimizer and loss function
     optimizer = optim.SGD(model.parameters(), lr=ALPHA, momentum=MOMENTUM, weight_decay=1e-4)
     criterion = F.nll_loss
 
     # Load cached model if requested
     if cache:
-        model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), RELATIVE_MODEL_LOC)))
-        optimizer.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), RELATIVE_OPTIMIZER_LOC)))
+        model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['model'])))
+        optimizer.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['optimizer'])))
 
     # Tell PyTorch we're training the model
     model.train()
@@ -191,8 +195,8 @@ def _train(model, train_data_loader, val_data_loader, cache):
                 train_loss = 0.
 
                 # Update cached model and optimizer
-                torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), RELATIVE_MODEL_LOC))
-                torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__), RELATIVE_OPTIMIZER_LOC))
+                torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), relative_model_path))
+                torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__), relative_optimizer_path))
 
                 print(f'Epoch {epoch} [{batch_index}]: {val_acc}')
 
@@ -259,17 +263,15 @@ if __name__ == '__main__':
     config_settings()
     train_data_loader, val_data_loader, test_data_loader = load_data(TRAIN_BATCH_SIZE, TRAIN_BATCH_SIZE, TEST_BATCH_SIZE)
 
-    # Train Code:
-
-    # model, train_loss_lst, val_accuracy_lst, seen_examples = train_numeric(train_data_loader, val_data_loader, cache=True)
+    # Train Code (Numeric):
+    # cache = {
+    #     'model': f'{RELATIVE_MODEL_LOC}/model_numeric.pth',
+    #     'optimizer': f'{RELATIVE_OPTIMIZER_LOC}/optimizer_numeric.pth'
+    # }
+    # model, train_loss_lst, val_accuracy_lst, seen_examples = train_numeric(train_data_loader, val_data_loader,
+    #                                                                        cache=cache)
     # plot_results(seen_examples, train_loss_lst, 'Training Loss', 'Seen Examples', 'Loss')
     # plot_results(seen_examples, val_accuracy_lst, 'Validation Accuracy', 'Seen Examples', 'Accuracy')
 
     # Test Code:
-    print(test_final_model(test_data_loader, RELATIVE_MODEL_LOC, 'NUMERIC'))
-
-
-
-
-
-
+    print(test_final_model(test_data_loader, f'{RELATIVE_MODEL_LOC}/model_numeric.pth', 'NUMERIC'))
