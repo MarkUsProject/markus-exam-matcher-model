@@ -60,7 +60,9 @@ class Net(nn.Module):
 
 
 def config_settings():
-    """Configure torch settings prior to training."""
+    """
+    Configure torch settings prior to training.
+    """
     # Remove any randomization from training so results are reproducible
     torch.backends.cudnn.enabled = False
     torch.manual_seed(RANDOM_SEED)
@@ -120,19 +122,73 @@ def display_data_batch(train_data_loader) -> None:
 
 
 def train_numeric(train_data_loader, val_data_loader, cache=None):
-    """Train a numeric recognition model."""
+    """
+    Train a numeric recognition model.
+
+    :param train_data_loader: PyTorch DataLoader containing training data.
+    :param val_data_loader: PyTorch DataLoader containing validation data.
+    :param cache: Optional parameter specifying file paths for already trained
+                  models. Default value is None, meaning create a model from
+                  scratch. To specify a value for this parameter, pass in
+                  a dictionary of the form:
+                  {
+                    'model': YOUR_RELATIVE_MODEL_PATH,
+                    'optimizer': YOUR_RELATIVE_OPTIMIZER_PATH
+                  }
+
+    :return: Statistics from training. Specifically, returns
+                - The trained model itself.
+                - A list containing the training loss at every LOG_INTERVAL (this
+                  value is cleared every LOG_INTERVAL).
+                - A list containing the validation accuracy at every LOG_INTERVAL.
+                - A list containing the number of examples seen at every
+                  LOG_INTERVAL.
+             in the presented order.
+
+    Note: Model is saved at RELATIVE_MODEL_LOC/model_numeric.pth at every
+          LOG_INTERVAL, and the optimizer is saved at
+          RELATIVE_OPTIMIZER_PATH/optimizer_numeric.pth at every LOG_INTERVAL.
+    """
     model = Net(10)
     return _train(model, train_data_loader, val_data_loader, cache, 'NUMERIC')
 
 
 def train_letter(train_data_loader, val_data_loader, cache=None):
-    """Train a letter recognition model."""
+    """
+    Train a letter recognition model.
+
+    :param train_data_loader: PyTorch DataLoader containing training data.
+    :param val_data_loader: PyTorch DataLoader containing validation data.
+    :param cache: Optional parameter specifying file paths for already trained
+                  models. Default value is None, meaning create a model from
+                  scratch. To specify a value for this parameter, pass in
+                  a dictionary of the form:
+                  {
+                    'model': YOUR_RELATIVE_MODEL_PATH,
+                    'optimizer': YOUR_RELATIVE_OPTIMIZER_PATH
+                  }
+
+    :return: Statistics from training. Specifically, returns
+                - The trained model itself.
+                - A list containing the training loss at every LOG_INTERVAL (this
+                  value is cleared every LOG_INTERVAL).
+                - A list containing the validation accuracy at every LOG_INTERVAL.
+                - A list containing the number of examples seen at every
+                  LOG_INTERVAL.
+             in the presented order.
+
+    Note: Model is saved at RELATIVE_MODEL_LOC/model_letter.pth at every
+          LOG_INTERVAL, and the optimizer is saved at
+          RELATIVE_OPTIMIZER_PATH/optimizer_letter.pth at every LOG_INTERVAL.
+    """
     model = Net(26)
     return _train(model, train_data_loader, val_data_loader, cache, 'LETTER')
 
 
 def _train(model, train_data_loader, val_data_loader, cache, model_type):
-    """Train a Net model."""
+    """
+    Train a Net model.
+    """
     # Create relative path locations
     relative_model_path = f'{RELATIVE_MODEL_LOC}/model_{model_type.lower()}.pth'
     relative_optimizer_path = f'{RELATIVE_OPTIMIZER_LOC}/optimizer_{model_type.lower()}.pth'
@@ -204,7 +260,14 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
 
 
 def evaluate(model, data_loader) -> float:
-    """Evaluate the Neural Network."""
+    """
+    Evaluate the Neural Network using the accuracy metric.
+
+    :param model: Neural Network to evaluate.
+    :param data_loader: PyTorch DataLoader containing the data to evaluate
+                        the model on.
+    :return: Accuracy score achieved by the model, as a percentage.
+    """
     model.eval()
     correct = 0
 
@@ -224,7 +287,17 @@ def evaluate(model, data_loader) -> float:
 
 
 def plot_results(seen_examples, statistics, plt_label, x_label, y_label) -> None:
-    """Plot results."""
+    """
+    Plot the given statistics as a function of the number of examples seen.
+
+    :param seen_examples: List containing number of examples seen every time a
+                          statistic was appended to the statistics list.
+    :param statistics: List containing the statistics of interest.
+    :param plt_label: Label for the overall plot.
+    :param x_label: Label for the x-axis.
+    :param y_label: Label for the y-axis.
+    :return: None
+    """
     # Plot results
     plt.plot(seen_examples, statistics, label=plt_label)
 
@@ -243,9 +316,10 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
     """
     Evaluate the final model on the test set.
 
-    Preconditions:
-        - model state is saved at relative_model_path
-        - model_type is one of the string literals NUMERIC or LETTER
+    :param test_data_loader: PyTorch DataLoader containing the test data.
+    :param relative_model_path: Relative path to the trained CNN to evaluate.
+    :param model_type: String representing the type of model. Must be one of
+                       'NUMERIC' or 'LETTER'.
     """
     # Load model
     if model_type == 'NUMERIC':
