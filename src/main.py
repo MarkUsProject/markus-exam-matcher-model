@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import os
 from typing import Dict
 from config import config
+import pickle
 
 
 MNIST_MEAN = 0.1307
@@ -56,6 +57,16 @@ def config_settings():
     # Remove any randomization from training so results are reproducible
     torch.backends.cudnn.enabled = False
     torch.manual_seed(config['RANDOM_SEED'])
+
+    # Make sure all relevant directories are created
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_MODEL_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_MODEL_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_OPTIMIZER_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_OPTIMIZER_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_STATISTICS_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_STATISTICS_LOC']))
 
 
 def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
@@ -129,6 +140,8 @@ def train_numeric(train_data_loader, val_data_loader, cache=None):
     :return: Statistics from training. Specifically, returns a dictionary of the form:
              {
                 'model': The trained model itself.
+                'epochs': Total number of epochs the model has been trained on at the
+                          end of this training session.
                 'train_loss': A list containing the training loss at every LOG_INTERVAL
                               (this value is cleared every LOG_INTERVAL).
                 'validation_accuracy': A list containing the validation accuracy at every
@@ -176,6 +189,8 @@ def train_letter(train_data_loader, val_data_loader, cache=None):
     :return: Statistics from training. Specifically, returns a dictionary of the form:
              {
                 'model': The trained model itself.
+                'epochs': Total number of epochs the model has been trained on at the
+                          end of this training session.
                 'train_loss': A list containing the training loss at every LOG_INTERVAL
                               (this value is cleared every LOG_INTERVAL).
                 'validation_accuracy': A list containing the validation accuracy at every
@@ -217,14 +232,6 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     optimizer = optim.SGD(model.parameters(), lr=config['ALPHA'], momentum=config['MOMENTUM'], weight_decay=1e-4)
     criterion = F.nll_loss
 
-    # Load cached model if requested
-    if cache:
-        model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['model'])))
-        optimizer.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['optimizer'])))
-
-    # Tell PyTorch we're training the model
-    model.train()
-
     # Define statistics data structures
     general_training_data = {
         'train_loss': [],
@@ -236,10 +243,29 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
         'epoch_end_train_loss': [],
         'epoch_end_validation_accuracy': []
     }
+    prev_trained_epochs = 0
+
+    # Load cached model if requested
+    if cache:
+        model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['model'])))
+        optimizer.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['optimizer'])))
+
+        prev_stats = load_training_statistics(cache['statistics'])
+        prev_epoch_end_stats = prev_stats['epoch_end_data']
+        general_training_data['train_loss'].extend(prev_stats['train_loss'])
+        general_training_data['validation_accuracy'].extend(prev_stats['validation_accuracy'])
+        general_training_data['seen_examples'].extend(prev_stats['seen_examples'])
+        epoch_end_data['epoch_end_train_loss'].extend(prev_epoch_end_stats['epoch_end_train_loss'])
+        epoch_end_data['epoch_end_validation_accuracy'].extend(prev_epoch_end_stats['epoch_end_validation_accuracy'])
+        epoch_end_data['epoch_end_seen_examples'].extend(prev_epoch_end_stats['epoch_end_seen_examples'])
+        prev_trained_epochs += prev_stats['epochs']
+
+    # Tell PyTorch we're training the model
+    model.train()
 
     # Begin training
     for epoch in range(config['NUM_EPOCHS']):
-
+        curr_epoch = epoch + prev_trained_epochs
         train_loss = 0.
 
         for batch_index, (batch_data, batch_targets) in enumerate(train_data_loader):
@@ -268,7 +294,7 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
                 general_training_data['validation_accuracy'].append(val_acc)
 
                 examples_seen_so_far = \
-                    (batch_index * batch_targets.size(0)) + (epoch * len(train_data_loader.dataset))
+                    (batch_index * batch_targets.size(0)) + (curr_epoch * len(train_data_loader.dataset))
                 general_training_data['seen_examples'].append(examples_seen_so_far)
 
                 # Switch back to training
@@ -283,7 +309,7 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
                 torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__),
                                                                 f'{relative_optimizer_path_no_ext}.pth'))
 
-                print(f'Epoch {epoch} [{batch_index}]: {val_acc}')
+                print(f'Epoch {curr_epoch} [{batch_index}]: {val_acc}')
 
         # Log the current training data end of this epoch.
         # This can be used to highlight the points on each training curve where epochs end.
@@ -293,17 +319,21 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
 
         # Save model and optimizer at the end of this epoch
         torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__),
-                                                    f'{relative_model_path_no_ext}_epoch_{epoch}.pth'))
+                                                    f'{relative_model_path_no_ext}_epoch_{curr_epoch}.pth'))
         torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__),
-                                                        f'{relative_optimizer_path_no_ext}_epoch_{epoch}.pth'))
+                                                        f'{relative_optimizer_path_no_ext}_epoch_{curr_epoch}.pth'))
 
-    return {
+    # Save training statistics and return
+    results = {
         'model': model,
+        'epochs': config['NUM_EPOCHS'] + prev_trained_epochs,
         'train_loss': general_training_data['train_loss'],
         'validation_accuracy': general_training_data['validation_accuracy'],
         'seen_examples': general_training_data['seen_examples'],
         'epoch_end_data': epoch_end_data
     }
+    store_training_statistics(results)
+    return results
 
 
 def evaluate(model, data_loader) -> float:
@@ -386,6 +416,7 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
     :param relative_model_path: Relative path to the trained CNN to evaluate.
     :param model_type: String representing the type of model. Must be one of
                        'NUMERIC' or 'LETTER'.
+    :return: Accuracy, as a percentage, on the test set.
     """
     # Load model
     if model_type == 'NUMERIC':
@@ -399,20 +430,49 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
     return evaluate(model, test_data_loader)
 
 
+def store_training_statistics(results_dict: Dict) -> None:
+    """
+    Store the final training statistics the relative path specified by
+    RELATIVE_STATISTICS_LOC/statistics.pkl.
+
+    :param results_dict: Return value from either of the train_numeric() or train_letter()
+                         procedures.
+    :return: None
+    """
+    relative_filepath = f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
+    with open(relative_filepath, 'wb') as f:
+        pickle.dump(results_dict, f)
+
+
+def load_training_statistics(relative_filepath: str) -> Dict:
+    """
+    Load the final training statistics from a previous training session stored at
+    the relative path RELATIVE_STATISTICS_LOC/statistics.pkl.
+
+    :return: Training statistics in the form specified in the docstring of one of the
+             train_numeric() or train_letter() procedures.
+    """
+    with open(relative_filepath, 'rb') as f:
+        results_dict = pickle.load(f)
+    return results_dict
+
+
 if __name__ == '__main__':
     config_settings()
     train_data_loader, val_data_loader, test_data_loader = \
         load_data(config['TRAIN_BATCH_SIZE'], config['VALIDATION_BATCH_SIZE'], config['TEST_BATCH_SIZE'])
 
     # Train Code (Numeric):
-    # cache = {
-    #     'model': f'{RELATIVE_MODEL_LOC}/model_numeric.pth',
-    #     'optimizer': f'{RELATIVE_OPTIMIZER_LOC}/optimizer_numeric.pth'
-    # }
-    cache = None
+    cache = {
+        'model': f'{config["RELATIVE_MODEL_LOC"]}/model_numeric.pth',
+        'optimizer': f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_numeric.pth',
+        'statistics': f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
+    }
+    # cache = None
 
     results_dict = train_numeric(train_data_loader, val_data_loader, cache=cache)
     plot_results(results_dict)
+
 
 
     # Test Code:

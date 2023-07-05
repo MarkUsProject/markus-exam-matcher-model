@@ -3,7 +3,7 @@ config = {
     'TRAIN_BATCH_SIZE': 32,
     'VALIDATION_BATCH_SIZE': 32,
     'TEST_BATCH_SIZE': 1000,
-    'NUM_EPOCHS': 2,
+    'NUM_EPOCHS': 1,
     'ALPHA': 0.01,
     'MOMENTUM': 0.5,
 
@@ -11,8 +11,9 @@ config = {
     'LOG_INTERVAL': 10,
 
     # Relative Storage Directory Paths
-    'RELATIVE_MODEL_LOC': 'results',
-    'RELATIVE_OPTIMIZER_LOC': 'results',
+    'RELATIVE_MODEL_LOC': 'results/models',
+    'RELATIVE_OPTIMIZER_LOC': 'results/models',
+    'RELATIVE_STATISTICS_LOC': 'results/stats',
     'RELATIVE_DATA_LOC': 'data',
 
     # Miscellaneous
