@@ -12,21 +12,11 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import os
 from typing import Dict
+from config import config
 
-TRAIN_BATCH_SIZE = 32
-NUM_EPOCHS = 2
-TEST_BATCH_SIZE = 1000
-ALPHA = 0.01
-MOMENTUM = 0.5
-LOG_INTERVAL = 10
-RANDOM_SEED = 1
 
 MNIST_MEAN = 0.1307
 MNIST_STD = 0.3081
-
-RELATIVE_MODEL_LOC = 'results'
-RELATIVE_OPTIMIZER_LOC = 'results'
-RELATIVE_DATA_LOC = 'data'
 
 # Transformation pipeline
 TRANSFORM = transforms.Compose([
@@ -66,7 +56,7 @@ def config_settings():
     """
     # Remove any randomization from training so results are reproducible
     torch.backends.cudnn.enabled = False
-    torch.manual_seed(RANDOM_SEED)
+    torch.manual_seed(config['RANDOM_SEED'])
 
 
 def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
@@ -81,7 +71,7 @@ def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
     For information on data loaders, see https://pytorch.org/docs/stable/data.html.
     """
     # Split train set into (TRAIN, VAL) and get data loaders for these new datasets
-    train_set = datasets.MNIST(root=os.path.join(os.path.dirname(__file__), RELATIVE_DATA_LOC),
+    train_set = datasets.MNIST(root=os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']),
                                train=True, download=True, transform=TRANSFORM)
     train_subset, val_subset = torch.utils.data.random_split(train_set, [50000, 10000])
     train_loader = DataLoader(dataset=train_subset, shuffle=True, batch_size=train_batch_size)
@@ -90,7 +80,7 @@ def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
     # Get test data loader
     test_loader = DataLoader(
         datasets.MNIST(
-            root=os.path.join(os.path.dirname(__file__), RELATIVE_DATA_LOC),
+            root=os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']),
             train=False, download=True, transform=TRANSFORM
         ),
         batch_size=test_batch_size,
@@ -221,11 +211,11 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     Train a Net model.
     """
     # Create relative path locations without their file extensions
-    relative_model_path_no_ext = f'{RELATIVE_MODEL_LOC}/model_{model_type.lower()}'
-    relative_optimizer_path_no_ext = f'{RELATIVE_OPTIMIZER_LOC}/optimizer_{model_type.lower()}'
+    relative_model_path_no_ext = f'{config["RELATIVE_MODEL_LOC"]}/model_{model_type.lower()}'
+    relative_optimizer_path_no_ext = f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_{model_type.lower()}'
 
     # Define optimizer and loss function
-    optimizer = optim.SGD(model.parameters(), lr=ALPHA, momentum=MOMENTUM, weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=config['ALPHA'], momentum=config['MOMENTUM'], weight_decay=1e-4)
     criterion = F.nll_loss
 
     # Load cached model if requested
@@ -249,7 +239,7 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     }
 
     # Begin training
-    for epoch in range(NUM_EPOCHS):
+    for epoch in range(config['NUM_EPOCHS']):
 
         train_loss = 0.
 
@@ -270,7 +260,7 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
             # Update statistics
             train_loss += loss.item()
 
-            if batch_index % LOG_INTERVAL == 0:
+            if batch_index % config['LOG_INTERVAL'] == 0:
                 # Evaluate model on validation data
                 val_acc = evaluate(model, val_data_loader)
 
@@ -412,7 +402,8 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
 
 if __name__ == '__main__':
     config_settings()
-    train_data_loader, val_data_loader, test_data_loader = load_data(TRAIN_BATCH_SIZE, TRAIN_BATCH_SIZE, TEST_BATCH_SIZE)
+    train_data_loader, val_data_loader, test_data_loader = \
+        load_data(config['TRAIN_BATCH_SIZE'], config['VALIDATION_BATCH_SIZE'], config['TEST_BATCH_SIZE'])
 
     # Train Code (Numeric):
     # cache = {
