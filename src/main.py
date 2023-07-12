@@ -233,6 +233,7 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     criterion = F.nll_loss
 
     # Define statistics data structures
+    results = {}
     general_training_data = {
         'train_loss': [],
         'validation_accuracy': [],
@@ -323,16 +324,18 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
         torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__),
                                                         f'{relative_optimizer_path_no_ext}_epoch_{curr_epoch}.pth'))
 
-    # Save training statistics and return
-    results = {
-        'model': model,
-        'epochs': config['NUM_EPOCHS'] + prev_trained_epochs,
-        'train_loss': general_training_data['train_loss'],
-        'validation_accuracy': general_training_data['validation_accuracy'],
-        'seen_examples': general_training_data['seen_examples'],
-        'epoch_end_data': epoch_end_data
-    }
-    store_training_statistics(results)
+        # Save training statistics
+        results = {
+            'model': model,
+            'epochs': curr_epoch + 1,  # curr_epoch is zero-indexed, but the epochs count should start from 1
+            'train_loss': general_training_data['train_loss'],
+            'validation_accuracy': general_training_data['validation_accuracy'],
+            'seen_examples': general_training_data['seen_examples'],
+            'epoch_end_data': epoch_end_data
+        }
+        store_training_statistics(results)
+
+    # Return statistics
     return results
 
 
@@ -389,7 +392,7 @@ def plot_results(results_dict: Dict) -> None:
     ax[0].plot(seen_examples, train_loss, label='Training Loss')
     ax[0].set_xlabel('Seen Examples')
     ax[0].set_ylabel('Training Loss')
-    ax[0].plot(epoch_end_seen_examples, epoch_end_train_loss, linestyle="", marker='o', color='r',
+    ax[0].plot(epoch_end_seen_examples, epoch_end_train_loss, linestyle='', marker='o', color='r',
                label='Training Loss at Epoch End')
     ax[0].legend(loc='upper center', bbox_to_anchor=(0.5, 1.115), ncol=1)
 
@@ -397,7 +400,7 @@ def plot_results(results_dict: Dict) -> None:
     ax[1].plot(seen_examples, validation_accuracy, label='Validation Accuracy')
     ax[1].set_xlabel('Seen Examples')
     ax[1].set_ylabel('Accuracy')
-    ax[1].plot(epoch_end_seen_examples, epoch_end_validation_accuracy, linestyle="", marker='o', color='r',
+    ax[1].plot(epoch_end_seen_examples, epoch_end_validation_accuracy, linestyle='', marker='o', color='r',
                label='Validation Accuracy at Epoch End')
     ax[1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.115), ncol=1)
 
@@ -462,19 +465,18 @@ if __name__ == '__main__':
     train_data_loader, val_data_loader, test_data_loader = \
         load_data(config['TRAIN_BATCH_SIZE'], config['VALIDATION_BATCH_SIZE'], config['TEST_BATCH_SIZE'])
 
-    # Train Code (Numeric):
-    cache = {
-        'model': f'{config["RELATIVE_MODEL_LOC"]}/model_numeric.pth',
-        'optimizer': f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_numeric.pth',
-        'statistics': f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
-    }
-    # cache = None
-
-    results_dict = train_numeric(train_data_loader, val_data_loader, cache=cache)
-    plot_results(results_dict)
-
+    # # Train Code (Numeric):
+    # cache = {
+    #     'model': f'{config["RELATIVE_MODEL_LOC"]}/model_numeric.pth',
+    #     'optimizer': f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_numeric.pth',
+    #     'statistics': f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
+    # }
+    # # cache = None
+    #
+    # results_dict = train_numeric(train_data_loader, val_data_loader, cache=cache)
+    # plot_results(results_dict)
 
 
     # Test Code:
-    # print(test_final_model(test_data_loader, f'{RELATIVE_MODEL_LOC}/model_numeric.pth', 'NUMERIC'))
+    print(test_final_model(test_data_loader, f'{config["RELATIVE_MODEL_LOC"]}/model_numeric_epoch_24.pth', 'NUMERIC'))
     

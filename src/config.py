@@ -3,7 +3,7 @@ config = {
     'TRAIN_BATCH_SIZE': 32,
     'VALIDATION_BATCH_SIZE': 32,
     'TEST_BATCH_SIZE': 1000,
-    'NUM_EPOCHS': 1,
+    'NUM_EPOCHS': 35,
     'ALPHA': 0.01,
     'MOMENTUM': 0.5,
 
@@ -17,5 +17,5 @@ config = {
     'RELATIVE_DATA_LOC': 'data',
 
     # Miscellaneous
-    'RANDOM_SEED': 1,
+    'RANDOM_SEED': 42,
 }
