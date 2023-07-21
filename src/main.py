@@ -229,7 +229,8 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     relative_optimizer_path_no_ext = f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_{model_type.lower()}'
 
     # Define optimizer and loss function
-    optimizer = optim.SGD(model.parameters(), lr=config['ALPHA'], momentum=config['MOMENTUM'], weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=config['ALPHA'], momentum=config['MOMENTUM'],
+                          weight_decay=config['WEIGHT_DECAY'])
     criterion = F.nll_loss
 
     # Define statistics data structures
@@ -475,7 +476,6 @@ if __name__ == '__main__':
     #
     # results_dict = train_numeric(train_data_loader, val_data_loader, cache=cache)
     # plot_results(results_dict)
-
 
     # Test Code:
     print(test_final_model(test_data_loader, f'{config["RELATIVE_MODEL_LOC"]}/model_numeric_epoch_24.pth', 'NUMERIC'))

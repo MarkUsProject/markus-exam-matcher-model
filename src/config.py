@@ -6,6 +6,7 @@ config = {
     'NUM_EPOCHS': 35,
     'ALPHA': 0.01,
     'MOMENTUM': 0.5,
+    'WEIGHT_DECAY': 1e-4,
 
     # Statistics Logging & Model Storing Interval
     'LOG_INTERVAL': 10,
