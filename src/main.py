@@ -2,7 +2,6 @@
 Training module.
 """
 
-from __future__ import print_function
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,21 +10,13 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import os
+from typing import Dict
+from config import config
+import pickle
 
-TRAIN_BATCH_SIZE = 32
-NUM_EPOCHS = 1
-TEST_BATCH_SIZE = 1000
-ALPHA = 0.01
-MOMENTUM = 0.5
-LOG_INTERVAL = 10
-RANDOM_SEED = 1
 
 MNIST_MEAN = 0.1307
 MNIST_STD = 0.3081
-
-RELATIVE_MODEL_LOC = 'results'
-RELATIVE_OPTIMIZER_LOC = 'results'
-RELATIVE_DATA_LOC = 'data'
 
 # Transformation pipeline
 TRANSFORM = transforms.Compose([
@@ -65,7 +56,17 @@ def config_settings():
     """
     # Remove any randomization from training so results are reproducible
     torch.backends.cudnn.enabled = False
-    torch.manual_seed(RANDOM_SEED)
+    torch.manual_seed(config['RANDOM_SEED'])
+
+    # Make sure all relevant directories are created
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_MODEL_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_MODEL_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_OPTIMIZER_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_OPTIMIZER_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']))
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_STATISTICS_LOC'])):
+        os.mkdir(os.path.join(os.path.dirname(__file__), config['RELATIVE_STATISTICS_LOC']))
 
 
 def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
@@ -80,7 +81,7 @@ def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
     For information on data loaders, see https://pytorch.org/docs/stable/data.html.
     """
     # Split train set into (TRAIN, VAL) and get data loaders for these new datasets
-    train_set = datasets.MNIST(root=os.path.join(os.path.dirname(__file__), RELATIVE_DATA_LOC),
+    train_set = datasets.MNIST(root=os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']),
                                train=True, download=True, transform=TRANSFORM)
     train_subset, val_subset = torch.utils.data.random_split(train_set, [50000, 10000])
     train_loader = DataLoader(dataset=train_subset, shuffle=True, batch_size=train_batch_size)
@@ -89,7 +90,7 @@ def load_data(train_batch_size: int, val_batch_size: int, test_batch_size: int):
     # Get test data loader
     test_loader = DataLoader(
         datasets.MNIST(
-            root=os.path.join(os.path.dirname(__file__), RELATIVE_DATA_LOC),
+            root=os.path.join(os.path.dirname(__file__), config['RELATIVE_DATA_LOC']),
             train=False, download=True, transform=TRANSFORM
         ),
         batch_size=test_batch_size,
@@ -136,18 +137,35 @@ def train_numeric(train_data_loader, val_data_loader, cache=None):
                     'optimizer': YOUR_RELATIVE_OPTIMIZER_PATH
                   }
 
-    :return: Statistics from training. Specifically, returns
-                - The trained model itself.
-                - A list containing the training loss at every LOG_INTERVAL (this
-                  value is cleared every LOG_INTERVAL).
-                - A list containing the validation accuracy at every LOG_INTERVAL.
-                - A list containing the number of examples seen at every
-                  LOG_INTERVAL.
-             in the presented order.
+    :return: Statistics from training. Specifically, returns a dictionary of the form:
+             {
+                'model': The trained model itself.
+                'epochs': Total number of epochs the model has been trained on at the
+                          end of this training session.
+                'train_loss': A list containing the training loss at every LOG_INTERVAL
+                              (this value is cleared every LOG_INTERVAL).
+                'validation_accuracy': A list containing the validation accuracy at every
+                                       LOG_INTERVAL.
+                'seen_examples': A list containing the number of examples seen at every
+                                 LOG_INTERVAL.
+                'epoch_end_data': A dictionary of the form:
+                                  {
+                                    'epoch_end_seen_examples': Seen examples at end of
+                                                               epoch.
+                                    'epoch_end_train_loss': Training loss at end of
+                                                            epoch.
+                                    'epoch_end_validation_accuracy': Validation accuracy
+                                                                     at end of epoch.
+                                  }
+             }
 
     Note: Model is saved at RELATIVE_MODEL_LOC/model_numeric.pth at every
           LOG_INTERVAL, and the optimizer is saved at
-          RELATIVE_OPTIMIZER_PATH/optimizer_numeric.pth at every LOG_INTERVAL.
+          RELATIVE_OPTIMIZER_LOC/optimizer_numeric.pth at every LOG_INTERVAL.
+          Both the model and optimizer are also saved at every epoch, at the
+          respective locations RELATIVE_MODEL_LOC/model_numeric_epoch_X.pth
+          and RELATIVE_OPTIMIZER_LOC/optimizer_numeric_epoch_X.pth, where X
+          represents the current epoch number.
     """
     model = Net(10)
     return _train(model, train_data_loader, val_data_loader, cache, 'NUMERIC')
@@ -168,18 +186,35 @@ def train_letter(train_data_loader, val_data_loader, cache=None):
                     'optimizer': YOUR_RELATIVE_OPTIMIZER_PATH
                   }
 
-    :return: Statistics from training. Specifically, returns
-                - The trained model itself.
-                - A list containing the training loss at every LOG_INTERVAL (this
-                  value is cleared every LOG_INTERVAL).
-                - A list containing the validation accuracy at every LOG_INTERVAL.
-                - A list containing the number of examples seen at every
-                  LOG_INTERVAL.
-             in the presented order.
+    :return: Statistics from training. Specifically, returns a dictionary of the form:
+             {
+                'model': The trained model itself.
+                'epochs': Total number of epochs the model has been trained on at the
+                          end of this training session.
+                'train_loss': A list containing the training loss at every LOG_INTERVAL
+                              (this value is cleared every LOG_INTERVAL).
+                'validation_accuracy': A list containing the validation accuracy at every
+                                       LOG_INTERVAL.
+                'seen_examples': A list containing the number of examples seen at every
+                                 LOG_INTERVAL.
+                'epoch_end_data': A dictionary of the form:
+                                  {
+                                    'epoch_end_seen_examples': Seen examples at end of
+                                                               epoch.
+                                    'epoch_end_train_loss': Training loss at end of
+                                                            epoch.
+                                    'epoch_end_validation_accuracy': Validation accuracy
+                                                                     at end of epoch.
+                                  }
+             }
 
     Note: Model is saved at RELATIVE_MODEL_LOC/model_letter.pth at every
           LOG_INTERVAL, and the optimizer is saved at
-          RELATIVE_OPTIMIZER_PATH/optimizer_letter.pth at every LOG_INTERVAL.
+          RELATIVE_OPTIMIZER_LOC/optimizer_letter.pth at every LOG_INTERVAL.
+          Both the model and optimizer are also saved at every epoch, at the
+          respective locations RELATIVE_MODEL_LOC/model_letter_epoch_X.pth
+          and RELATIVE_OPTIMIZER_LOC/optimizer_numeric_letter_X.pth, where X
+          represents the current epoch number.
     """
     model = Net(26)
     return _train(model, train_data_loader, val_data_loader, cache, 'LETTER')
@@ -189,30 +224,50 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
     """
     Train a Net model.
     """
-    # Create relative path locations
-    relative_model_path = f'{RELATIVE_MODEL_LOC}/model_{model_type.lower()}.pth'
-    relative_optimizer_path = f'{RELATIVE_OPTIMIZER_LOC}/optimizer_{model_type.lower()}.pth'
+    # Create relative path locations without their file extensions
+    relative_model_path_no_ext = f'{config["RELATIVE_MODEL_LOC"]}/model_{model_type.lower()}'
+    relative_optimizer_path_no_ext = f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_{model_type.lower()}'
 
     # Define optimizer and loss function
-    optimizer = optim.SGD(model.parameters(), lr=ALPHA, momentum=MOMENTUM, weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=config['ALPHA'], momentum=config['MOMENTUM'],
+                          weight_decay=config['WEIGHT_DECAY'])
     criterion = F.nll_loss
+
+    # Define statistics data structures
+    results = {}
+    general_training_data = {
+        'train_loss': [],
+        'validation_accuracy': [],
+        'seen_examples': []
+    }
+    epoch_end_data = {
+        'epoch_end_seen_examples': [],
+        'epoch_end_train_loss': [],
+        'epoch_end_validation_accuracy': []
+    }
+    prev_trained_epochs = 0
 
     # Load cached model if requested
     if cache:
         model.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['model'])))
         optimizer.load_state_dict(torch.load(os.path.join(os.path.dirname(__file__), cache['optimizer'])))
 
+        prev_stats = load_training_statistics(cache['statistics'])
+        prev_epoch_end_stats = prev_stats['epoch_end_data']
+        general_training_data['train_loss'].extend(prev_stats['train_loss'])
+        general_training_data['validation_accuracy'].extend(prev_stats['validation_accuracy'])
+        general_training_data['seen_examples'].extend(prev_stats['seen_examples'])
+        epoch_end_data['epoch_end_train_loss'].extend(prev_epoch_end_stats['epoch_end_train_loss'])
+        epoch_end_data['epoch_end_validation_accuracy'].extend(prev_epoch_end_stats['epoch_end_validation_accuracy'])
+        epoch_end_data['epoch_end_seen_examples'].extend(prev_epoch_end_stats['epoch_end_seen_examples'])
+        prev_trained_epochs += prev_stats['epochs']
+
     # Tell PyTorch we're training the model
     model.train()
 
-    # Define statistics data structures
-    train_loss_lst = []
-    val_accuracy_lst = []
-    seen_examples = []
-
     # Begin training
-    for epoch in range(NUM_EPOCHS):
-
+    for epoch in range(config['NUM_EPOCHS']):
+        curr_epoch = epoch + prev_trained_epochs
         train_loss = 0.
 
         for batch_index, (batch_data, batch_targets) in enumerate(train_data_loader):
@@ -232,17 +287,17 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
             # Update statistics
             train_loss += loss.item()
 
-            if batch_index % LOG_INTERVAL == 0:
+            if batch_index % config['LOG_INTERVAL'] == 0:
                 # Evaluate model on validation data
                 val_acc = evaluate(model, val_data_loader)
 
                 # Store statistics
-                train_loss_lst.append(loss.item())
-                val_accuracy_lst.append(val_acc)
+                general_training_data['train_loss'].append(loss.item())
+                general_training_data['validation_accuracy'].append(val_acc)
 
                 examples_seen_so_far = \
-                    (batch_index * batch_targets.size(0)) + (epoch * len(train_data_loader.dataset))
-                seen_examples.append(examples_seen_so_far)
+                    (batch_index * batch_targets.size(0)) + (curr_epoch * len(train_data_loader.dataset))
+                general_training_data['seen_examples'].append(examples_seen_so_far)
 
                 # Switch back to training
                 model.train()
@@ -251,12 +306,38 @@ def _train(model, train_data_loader, val_data_loader, cache, model_type):
                 train_loss = 0.
 
                 # Update cached model and optimizer
-                torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), relative_model_path))
-                torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__), relative_optimizer_path))
+                torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__),
+                                                            f'{relative_model_path_no_ext}.pth'))
+                torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__),
+                                                                f'{relative_optimizer_path_no_ext}.pth'))
 
-                print(f'Epoch {epoch} [{batch_index}]: {val_acc}')
+                print(f'Epoch {curr_epoch} [{batch_index}]: {val_acc}')
 
-    return model, train_loss_lst, val_accuracy_lst, seen_examples
+        # Log the current training data end of this epoch.
+        # This can be used to highlight the points on each training curve where epochs end.
+        epoch_end_data['epoch_end_seen_examples'].append(general_training_data['seen_examples'][-1])
+        epoch_end_data['epoch_end_train_loss'].append(general_training_data['train_loss'][-1])
+        epoch_end_data['epoch_end_validation_accuracy'].append(general_training_data['validation_accuracy'][-1])
+
+        # Save model and optimizer at the end of this epoch
+        torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__),
+                                                    f'{relative_model_path_no_ext}_epoch_{curr_epoch}.pth'))
+        torch.save(optimizer.state_dict(), os.path.join(os.path.dirname(__file__),
+                                                        f'{relative_optimizer_path_no_ext}_epoch_{curr_epoch}.pth'))
+
+        # Save training statistics
+        results = {
+            'model': model,
+            'epochs': curr_epoch + 1,  # curr_epoch is zero-indexed, but the epochs count should start from 1
+            'train_loss': general_training_data['train_loss'],
+            'validation_accuracy': general_training_data['validation_accuracy'],
+            'seen_examples': general_training_data['seen_examples'],
+            'epoch_end_data': epoch_end_data
+        }
+        store_training_statistics(results)
+
+    # Return statistics
+    return results
 
 
 def evaluate(model, data_loader) -> float:
@@ -286,27 +367,46 @@ def evaluate(model, data_loader) -> float:
     return correct / len(data_loader.dataset)
 
 
-def plot_results(seen_examples, statistics, plt_label, x_label, y_label) -> None:
+def plot_results(results_dict: Dict) -> None:
     """
-    Plot the given statistics as a function of the number of examples seen.
+    Plot the training statistics as a function of the number of examples seen.
 
-    :param seen_examples: List containing number of examples seen every time a
-                          statistic was appended to the statistics list.
-    :param statistics: List containing the statistics of interest.
-    :param plt_label: Label for the overall plot.
-    :param x_label: Label for the x-axis.
-    :param y_label: Label for the y-axis.
+    :param results_dict: Return value from either of the train_numeric() or train_letter()
+                         procedures.
     :return: None
     """
-    # Plot results
-    plt.plot(seen_examples, statistics, label=plt_label)
+    # Extract statistics
+    epoch_end_data = results_dict['epoch_end_data']
 
-    # Set the x-axis and y-axis labels
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
+    seen_examples = results_dict['seen_examples']
+    train_loss = results_dict['train_loss']
+    validation_accuracy = results_dict['validation_accuracy']
 
-    # Add a legend
-    plt.legend()
+    epoch_end_seen_examples = epoch_end_data['epoch_end_seen_examples']
+    epoch_end_train_loss = epoch_end_data['epoch_end_train_loss']
+    epoch_end_validation_accuracy = epoch_end_data['epoch_end_validation_accuracy']
+
+    # Create figure with two subplots
+    fig, ax = plt.subplots(nrows=1, ncols=2)
+
+    # Plot training loss on leftmost subplot
+    ax[0].plot(seen_examples, train_loss, label='Training Loss')
+    ax[0].set_xlabel('Seen Examples')
+    ax[0].set_ylabel('Training Loss')
+    ax[0].plot(epoch_end_seen_examples, epoch_end_train_loss, linestyle='', marker='o', color='r',
+               label='Training Loss at Epoch End')
+    ax[0].legend(loc='upper center', bbox_to_anchor=(0.5, 1.115), ncol=1)
+
+    # Plot validation accuracy on rightmost subplot
+    ax[1].plot(seen_examples, validation_accuracy, label='Validation Accuracy')
+    ax[1].set_xlabel('Seen Examples')
+    ax[1].set_ylabel('Accuracy')
+    ax[1].plot(epoch_end_seen_examples, epoch_end_validation_accuracy, linestyle='', marker='o', color='r',
+               label='Validation Accuracy at Epoch End')
+    ax[1].legend(loc='upper center', bbox_to_anchor=(0.5, 1.115), ncol=1)
+
+    # Set figure size
+    fig.set_size_inches(10, 7)
 
     # Show the plot
     plt.show(block=True)
@@ -320,6 +420,7 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
     :param relative_model_path: Relative path to the trained CNN to evaluate.
     :param model_type: String representing the type of model. Must be one of
                        'NUMERIC' or 'LETTER'.
+    :return: Accuracy, as a percentage, on the test set.
     """
     # Load model
     if model_type == 'NUMERIC':
@@ -333,20 +434,49 @@ def test_final_model(test_data_loader, relative_model_path, model_type) -> float
     return evaluate(model, test_data_loader)
 
 
+def store_training_statistics(results_dict: Dict) -> None:
+    """
+    Store the final training statistics the relative path specified by
+    RELATIVE_STATISTICS_LOC/statistics.pkl.
+
+    :param results_dict: Return value from either of the train_numeric() or train_letter()
+                         procedures.
+    :return: None
+    """
+    relative_filepath = f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
+    with open(relative_filepath, 'wb') as f:
+        pickle.dump(results_dict, f)
+
+
+def load_training_statistics(relative_filepath: str) -> Dict:
+    """
+    Load the final training statistics from a previous training session stored at
+    the relative path RELATIVE_STATISTICS_LOC/statistics.pkl.
+
+    :return: Training statistics in the form specified in the docstring of one of the
+             train_numeric() or train_letter() procedures.
+    """
+    with open(relative_filepath, 'rb') as f:
+        results_dict = pickle.load(f)
+    return results_dict
+
+
 if __name__ == '__main__':
     config_settings()
-    train_data_loader, val_data_loader, test_data_loader = load_data(TRAIN_BATCH_SIZE, TRAIN_BATCH_SIZE, TEST_BATCH_SIZE)
+    train_data_loader, val_data_loader, test_data_loader = \
+        load_data(config['TRAIN_BATCH_SIZE'], config['VALIDATION_BATCH_SIZE'], config['TEST_BATCH_SIZE'])
 
-    # Train Code (Numeric):
+    # # Train Code (Numeric):
     # cache = {
-    #     'model': f'{RELATIVE_MODEL_LOC}/model_numeric.pth',
-    #     'optimizer': f'{RELATIVE_OPTIMIZER_LOC}/optimizer_numeric.pth'
+    #     'model': f'{config["RELATIVE_MODEL_LOC"]}/model_numeric.pth',
+    #     'optimizer': f'{config["RELATIVE_OPTIMIZER_LOC"]}/optimizer_numeric.pth',
+    #     'statistics': f'{config["RELATIVE_STATISTICS_LOC"]}/statistics.pkl'
     # }
-    # model, train_loss_lst, val_accuracy_lst, seen_examples = train_numeric(train_data_loader, val_data_loader,
-    #                                                                        cache=cache)
-    # plot_results(seen_examples, train_loss_lst, 'Training Loss', 'Seen Examples', 'Loss')
-    # plot_results(seen_examples, val_accuracy_lst, 'Validation Accuracy', 'Seen Examples', 'Accuracy')
+    # # cache = None
+    #
+    # results_dict = train_numeric(train_data_loader, val_data_loader, cache=cache)
+    # plot_results(results_dict)
 
     # Test Code:
-    print(test_final_model(test_data_loader, f'{RELATIVE_MODEL_LOC}/model_numeric.pth', 'NUMERIC'))
+    print(test_final_model(test_data_loader, f'{config["RELATIVE_MODEL_LOC"]}/model_numeric_epoch_24.pth', 'NUMERIC'))
     
